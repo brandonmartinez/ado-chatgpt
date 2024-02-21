@@ -166,7 +166,7 @@ else
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_MODELNAME($AZURE_OPENAI_MODELVERSION)" "INFO"
 
-    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/ado-oai?api-version=2023-05-01 \
+    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_MODELNAME?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
         --data-binary @- << EOF
@@ -188,7 +188,7 @@ EOF
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_EMBEDDINGMODELNAME($AZURE_OPENAI_EMBEDDINGMODELVERSION)" "INFO"
 
-    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/ado-embed-oai?api-version=2023-05-01 \
+    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_EMBEDDINGMODELNAME?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
         --data-binary @- << EOF
@@ -445,7 +445,7 @@ EOF
         "kind": "azureOpenAI",
         "azureOpenAIParameters": {
           "resourceUri": "$AZURE_OPENAI_URL",
-          "deploymentId": "ado-embed-oai",
+          "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME",
           "apiKey": "$AZURE_OPENAI_KEY",
           "authIdentity": null
         },
@@ -506,7 +506,7 @@ else
       "context": "/document/pages/*",
       "resourceUri": "$AZURE_OPENAI_URL",
       "apiKey": "$AZURE_OPENAI_KEY",
-      "deploymentId": "ado-embed-oai",
+      "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME",
       "inputs": [
         {
           "name": "text",
