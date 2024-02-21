@@ -9,7 +9,6 @@ To run this sample in its entirety, you need the following:
 
 - a bash-like shell (e.g. Git Bash, WSL, etc.)
 - an Azure DevOps organization and team project from which data will be exported
-- An Azure DevOps Personal Access Token (PAT) with work-item read access
 - an Azure subscription, with access to [Open AI](https://aka.ms/oai/access)
 - az cli installed and logged in to your Azure subscription
 

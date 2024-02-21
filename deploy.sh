@@ -68,6 +68,9 @@ az account set --subscription "$AZURE_SUBSCRIPTIONID"
 logmsg "Setting default location to $AZURE_LOCATION and resource group to $AZURE_RESOURCEGROUP" "INFO"
 az configure --defaults location="$AZURE_LOCATION" group="$AZURE_RESOURCEGROUP"
 
+# Store auth token from az cli to AZURE_AUTHTOKEN
+AZURE_AUTHTOKEN=$(az account get-access-token --query 'accessToken' -o tsv)
+
 logmsg "Azure configuration completed"
 
 # Execute IaC deployment
@@ -114,7 +117,6 @@ else
     logmsg "Export ADO work items to temporary working directory" "HEADER"
 
     logmsg "Setting Azure DevOps az configuration" "INFO"
-    ADO_RECORDFORMAT='{Id:id,AreaPath:fields."System.AreaPath",AssignedTo:fields."System.AssignedTo".displayName,State:fields."System.State",CreatedDate:fields."System.CreatedDate",ChangedDate:fields."System.ChangedDate",Title:fields."System.Title",StateChangeDate:fields."Microsoft.VSTS.Common.StateChangeDate",ClosedDate:fields."Microsoft.VSTS.Common.ClosedDate",Categories:fields."Custom.Categories",Description:fields."System.Description",Tags:fields."System.Tags"}'
     IFS=',' read -ra ADO_QUERIES <<< "$ADO_QUERIES"
 
     az devops configure --defaults organization=https://dev.azure.com/$ADO_ORG/ project=$ADO_PROJECT
@@ -160,9 +162,6 @@ fi
 if [[ "$SKIP_OPENAI_MODELSETUP" == "1" ]]; then
     logmsg "Skipping Azure Open AI model deployment" "INFO"
 else
-    # Store auth token from az cli to AZURE_AUTHTOKEN
-    AZURE_AUTHTOKEN=$(az account get-access-token --query 'accessToken' -o tsv)
-
     logmsg "Deploying Open AI models" "HEADER"
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_MODELNAME($AZURE_OPENAI_MODELVERSION)" "INFO"
