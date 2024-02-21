@@ -1,0 +1,4 @@
+.env
+src/main.parameters.json
+_temp/**/*
+.DS_Store
