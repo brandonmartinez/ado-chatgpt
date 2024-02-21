@@ -5,8 +5,8 @@
         "location": {
             "value": "$AZURE_LOCATION"
         },
-        "prefix": {
-            "value": "$AZURE_PREFIX"
+        "workload": {
+            "value": "$AZURE_WORKLOAD"
         }
     }
 }

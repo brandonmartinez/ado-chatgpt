@@ -1,11 +1,11 @@
 // Parameters
 param location string = resourceGroup().location
-param prefix string
+param workload string
 
 // Variables
-var storageAccountName = 'sa${replace(prefix, '-', '')}'
-var searchServiceName = 'search-${prefix}'
-var openAiName = 'openai-${prefix}'
+var storageAccountName = 'sa${replace(workload, '-', '')}'
+var searchServiceName = 'search-${workload}'
+var openAiName = 'openai-${workload}'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   #disable-next-line BCP334
