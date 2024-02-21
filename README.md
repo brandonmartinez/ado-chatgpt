@@ -30,5 +30,7 @@ deploy.sh
 
 ## References and Additional Resources
 
-- [Chat with your Azure DevOps data | Microsoft Tech Communities](https://techcommunity.microsoft.com/t5/fasttrack-for-azure/chat-with-your-azure-devops-data/ba-p/4017784)
-- [Preview - Sample Chat App with AOAI | GitHub](https://github.com/microsoft/sample-app-aoai-chatGPT)
+- This sample is heavily based off this article:
+  [Chat with your Azure DevOps data | Microsoft Tech Communities](https://techcommunity.microsoft.com/t5/fasttrack-for-azure/chat-with-your-azure-devops-data/ba-p/4017784)
+- Which itself is based off this sample:
+  [Preview - Sample Chat App with AOAI | GitHub](https://github.com/microsoft/sample-app-aoai-chatGPT)
