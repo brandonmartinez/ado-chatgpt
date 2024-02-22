@@ -50,7 +50,16 @@ fi
 # import env variables, export them to be available in subshells
 set -a
 source .env
+export AZURE_RESOURCEGROUP="rg-$AZURE_WORKLOAD"
 set +a
+
+# setting up temporary directories
+# Create a variable of the current working directory based on the current file
+WORKING_DIR=$(dirname "$(realpath "$0")")
+TEMP_DIR="$WORKING_DIR/.temp"
+TEMP_WORKITEM_DIR="$TEMP_DIR/workitems"
+
+mkdir -p "$TEMP_WORKITEM_DIR"
 
 logmsg "Environment configuration completed"
 
@@ -121,8 +130,6 @@ else
 
     az devops configure --defaults organization=https://dev.azure.com/$ADO_ORG/ project=$ADO_PROJECT
 
-    mkdir -p _temp/workitems
-
     for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
         logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
         ADO_WORKITEM_IDS=$(az boards query --id $ADO_QUERYID --query '[].id' -o tsv)
@@ -131,7 +138,7 @@ else
         count=0
 
         for ADO_WORKITEM_ID in $ADO_WORKITEM_IDS; do
-            ADO_WORKITEM_FILENAME="_temp/workitems/$ADO_WORKITEM_ID.json"
+            ADO_WORKITEM_FILENAME="$TEMP_WORKITEM_DIR/$ADO_WORKITEM_ID.json"
             az boards work-item show --id $ADO_WORKITEM_ID -o json --query $ADO_RECORDFORMAT > $ADO_WORKITEM_FILENAME &
             count=$((count + 1))
             if [ $((count % batch_size)) -eq 0 ]; then
@@ -152,7 +159,7 @@ if [[ "$SKIP_ADO_UPLOAD" == "1" ]]; then
 else
     logmsg "Import ADO work items to storage account" "HEADER"
 
-    az storage blob upload-batch --account-name $AZURE_STORAGEACCOUNT_NAME -d 'ado' -s _temp/workitems/ --overwrite
+    az storage blob upload-batch --account-name $AZURE_STORAGEACCOUNT_NAME -d 'ado' -s "$TEMP_WORKITEM_DIR/" --overwrite
 
     logmsg "Finished ADO work item import"
 fi
@@ -166,7 +173,7 @@ else
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_MODELNAME($AZURE_OPENAI_MODELVERSION)" "INFO"
 
-    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_MODELNAME?api-version=2023-05-01 \
+    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_MODELNAME-$AZURE_OPENAI_MODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
         --data-binary @- << EOF
@@ -188,7 +195,7 @@ EOF
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_EMBEDDINGMODELNAME($AZURE_OPENAI_EMBEDDINGMODELVERSION)" "INFO"
 
-    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_EMBEDDINGMODELNAME?api-version=2023-05-01 \
+    curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
         --data-binary @- << EOF
@@ -445,7 +452,7 @@ EOF
         "kind": "azureOpenAI",
         "azureOpenAIParameters": {
           "resourceUri": "$AZURE_OPENAI_URL",
-          "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME",
+          "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION",
           "apiKey": "$AZURE_OPENAI_KEY",
           "authIdentity": null
         },

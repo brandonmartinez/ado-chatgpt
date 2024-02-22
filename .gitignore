@@ -1,4 +1,4 @@
 .env
 src/main.parameters.json
-_temp/**/*
+.temp
 .DS_Store
