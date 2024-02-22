@@ -157,9 +157,9 @@ fi
 if [[ "$SKIP_ADO_UPLOAD" == "1" ]]; then
     logmsg "Skipping ADO work item upload to Azure Storage" "INFO"
 else
-    logmsg "Import ADO work items to storage account" "HEADER"
+    logmsg "Import ADO work items to storage account $AZURE_STORAGEACCOUNT_NAME" "HEADER"
 
-    az storage blob upload-batch --account-name $AZURE_STORAGEACCOUNT_NAME -d 'ado' -s "$TEMP_WORKITEM_DIR/" --overwrite
+    az storage blob upload-batch --account-name "$AZURE_STORAGEACCOUNT_NAME" -d 'ado' -s "$TEMP_WORKITEM_DIR/" --overwrite
 
     logmsg "Finished ADO work item import"
 fi
