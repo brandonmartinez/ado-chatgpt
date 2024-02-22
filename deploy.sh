@@ -513,7 +513,7 @@ else
       "context": "/document/pages/*",
       "resourceUri": "$AZURE_OPENAI_URL",
       "apiKey": "$AZURE_OPENAI_KEY",
-      "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME",
+      "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION",
       "inputs": [
         {
           "name": "text",
