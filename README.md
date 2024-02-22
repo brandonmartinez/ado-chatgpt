@@ -20,7 +20,9 @@ To run this sample in its entirety, you need the following:
 Duplicate the `.envsample` file and rename it to `.env`. Fill in the values for
 all of the required environment variables.
 
-The following parameters can be configured:
+<details>
+
+<summary>The following parameters can be configured:</summary>
 
 | Name                               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Required? |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
@@ -44,6 +46,8 @@ The following parameters can be configured:
 | SKIP_SEARCH_INDEXSETUP             | Set to `1` to skip the Azure AI Search index setup process                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | No        |
 | SKIP_SEARCH_SKILLSETSETUP          | Set to `1` to skip the Azure AI Search skill set setup process                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | No        |
 
+</details>
+
 ## Deploy the Resources
 
 Execute the following commands to deploy the sample:
@@ -56,9 +60,76 @@ deploy.sh
 
 ## Use Azure OpenAI Studio to Chat with Your Data
 
+### Configure your chat data source
+
 Once the resources are deployed, you can use the
 [Azure OpenAI Studio](https://oai.azure.com/portal/) to chat with your newly
 deployed model.
+
+![Add Data Source](./images/001.png)
+
+1. Navigate to "Chat" under the Playground
+2. Under "Setup", choose "Add your data"
+3. Click the "Add data source" button
+
+![Configure data source](./images/002.png)
+
+4. Under "Select data source", choose "Azure AI Search";
+5. Choose your Azure subscription
+6. Choose your Azure AI Search service
+7. For "Azure AI Search index", select `ado-vector-index`
+8. Check "Add vector search to this search resource"
+9. Choose the embedding model (e.g., `text-embedding-ada-002-2`)
+10. Check the "I acknowledge that connecting to an Azure AI Search account will
+    incur usage to my account."
+11. Click the "Next" button
+
+![Configure data management](./images/003.png)
+
+12. Under the "Search type", ensure "Hybrid + semantic" is selected
+13. Under "Select an existing semantic search configuration" choose
+    `ado-vector-semantic-configuration`.
+14. Check "I acknowledge that using semantic search will incur usage to my Azure
+    AI Search account
+15. Check "I acknowledge that adding vector embeddings will incur usage to my
+    account"
+16. Click the "Next" button
+
+![Review and finish](./images/004.png)
+
+17. Review the details presented and click the "Save and close" button
+
+### Chat with your data
+
+Now that your data source is configured, modify the chat playground settings to
+begin chatting with your data:
+
+![Prepare the Chat](./images/005.png)
+
+1. Choose "Advanced settings" to expand additional options
+2. Optionally, adjust the Strictness (hover over the information icon for more
+   details)
+3. Optionally, adjust the retrieved documents (hover over the information icon
+   for more details)
+4. Choose your Open AI model deployment (e.g., `gpt-35-turbo-16k-0613`)
+5. Optionally, adjust past messages to include (hover over the information icon
+   for more details)
+6. Enter your first prompt
+
+![Query the data](./images/006.png)
+
+Note that citations can be expanded and clicked on to show the data source the
+response came from. You can continue to query through additional prompts to
+refine the data that has been retrieved.
+
+### Optional: Deploy a Web App
+
+If you would like to deploy a web app to interact with your data, you can use
+the "Deploy to…" button and choose "A new web app…" to create an interactive web
+application using your newly deployed models and datasets.
+
+For more information, follow the instructions in
+[Tutorial: Deploy a web app for chat on your data](https://learn.microsoft.com/en-us/azure/ai-studio/tutorials/deploy-chat-web-app#deploy-the-web-app)
 
 ## References and Additional Resources
 
