@@ -1,0 +1,67 @@
+{
+    "name": "ado-index",
+    "fields": [
+        {
+            "name": "Id",
+            "type": "Edm.String",
+            "key": true,
+            "filterable": true
+        },
+        {
+            "name": "AreaPath",
+            "type": "Edm.String",
+            "filterable": true
+        },
+        {
+            "name": "AssignedTo",
+            "type": "Edm.String",
+            "filterable": true
+        },
+        {
+            "name": "Categories",
+            "type": "Edm.String"
+        },
+        {
+            "name": "ChangedDate",
+            "type": "Edm.DateTimeOffset"
+        },
+        {
+            "name": "ClosedDate",
+            "type": "Edm.DateTimeOffset"
+        },
+        {
+            "name": "CreatedDate",
+            "type": "Edm.DateTimeOffset"
+        },
+        {
+            "name": "StateChangeDate",
+            "type": "Edm.DateTimeOffset"
+        },
+        {
+            "name": "Description",
+            "type": "Edm.String",
+            "analyzer": "en.lucene"
+        },
+        {
+            "name": "State",
+            "type": "Edm.String",
+            "filterable": true
+        },
+        {
+            "name": "Tags",
+            "type": "Edm.String",
+            "filterable": true
+        },
+        {
+            "name": "Title",
+            "type": "Edm.String",
+            "filterable": true
+        }
+    ],
+    "corsOptions": {
+        "allowedOrigins": [
+            "*"
+        ],
+        "maxAgeInSeconds": 300
+    }
+}

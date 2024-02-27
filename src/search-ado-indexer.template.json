@@ -1,0 +1,18 @@
+{
+    "name": "ado-indexer",
+    "dataSourceName": "$AZURE_STORAGEACCOUNT_NAME-datasource",
+    "targetIndexName": "ado-index",
+    "parameters": {
+        "batchSize": null,
+        "maxFailedItems": null,
+        "maxFailedItemsPerBatch": null,
+        "base64EncodeKeys": null,
+        "configuration": {
+            "indexedFileNameExtensions": ".json",
+            "dataToExtract": "contentAndMetadata",
+            "parsingMode": "default"
+        }
+    },
+    "schedule": {},
+    "fieldMappings": []
+}

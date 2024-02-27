@@ -1,0 +1,159 @@
+{
+    "name": "ado-vector-index",
+    "defaultScoringProfile": null,
+    "fields": [
+        {
+            "name": "chunk_id",
+            "type": "Edm.String",
+            "searchable": true,
+            "filterable": true,
+            "retrievable": true,
+            "sortable": true,
+            "facetable": true,
+            "key": true,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "analyzer": "keyword",
+            "normalizer": null,
+            "dimensions": null,
+            "vectorSearchProfile": null,
+            "synonymMaps": []
+        },
+        {
+            "name": "parent_id",
+            "type": "Edm.String",
+            "searchable": true,
+            "filterable": true,
+            "retrievable": true,
+            "sortable": true,
+            "facetable": true,
+            "key": false,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "analyzer": null,
+            "normalizer": null,
+            "dimensions": null,
+            "vectorSearchProfile": null,
+            "synonymMaps": []
+        },
+        {
+            "name": "chunk",
+            "type": "Edm.String",
+            "searchable": true,
+            "filterable": false,
+            "retrievable": true,
+            "sortable": false,
+            "facetable": false,
+            "key": false,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "analyzer": null,
+            "normalizer": null,
+            "dimensions": null,
+            "vectorSearchProfile": null,
+            "synonymMaps": []
+        },
+        {
+            "name": "title",
+            "type": "Edm.String",
+            "searchable": true,
+            "filterable": true,
+            "retrievable": true,
+            "sortable": false,
+            "facetable": false,
+            "key": false,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "analyzer": null,
+            "normalizer": null,
+            "dimensions": null,
+            "vectorSearchProfile": null,
+            "synonymMaps": []
+        },
+        {
+            "name": "vector",
+            "type": "Collection(Edm.Single)",
+            "searchable": true,
+            "filterable": false,
+            "retrievable": true,
+            "sortable": false,
+            "facetable": false,
+            "key": false,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "analyzer": null,
+            "normalizer": null,
+            "dimensions": 1536,
+            "vectorSearchProfile": "ado-vector-profile",
+            "synonymMaps": []
+        }
+    ],
+    "scoringProfiles": [],
+    "corsOptions": null,
+    "suggesters": [],
+    "analyzers": [],
+    "normalizers": [],
+    "tokenizers": [],
+    "tokenFilters": [],
+    "charFilters": [],
+    "encryptionKey": null,
+    "similarity": {
+        "@odata.type": "#Microsoft.Azure.Search.BM25Similarity",
+        "k1": null,
+        "b": null
+    },
+    "semantic": {
+        "defaultConfiguration": "ado-vector-semantic-configuration",
+        "configurations": [
+            {
+                "name": "ado-vector-semantic-configuration",
+                "prioritizedFields": {
+                    "titleField": {
+                        "fieldName": "title"
+                    },
+                    "prioritizedContentFields": [
+                        {
+                            "fieldName": "chunk"
+                        }
+                    ],
+                    "prioritizedKeywordsFields": []
+                }
+            }
+        ]
+    },
+    "vectorSearch": {
+        "algorithms": [
+            {
+                "name": "ado-vector-algorithm",
+                "kind": "hnsw",
+                "hnswParameters": {
+                    "metric": "cosine",
+                    "m": 4,
+                    "efConstruction": 400,
+                    "efSearch": 500
+                },
+                "exhaustiveKnnParameters": null
+            }
+        ],
+        "profiles": [
+            {
+                "name": "ado-vector-profile",
+                "algorithm": "ado-vector-algorithm",
+                "vectorizer": "ado-vector-vectorizer"
+            }
+        ],
+        "vectorizers": [
+            {
+                "name": "ado-vector-vectorizer",
+                "kind": "azureOpenAI",
+                "azureOpenAIParameters": {
+                    "resourceUri": "$AZURE_OPENAI_URL",
+                    "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION",
+                    "apiKey": "$AZURE_OPENAI_KEY",
+                    "authIdentity": null
+                },
+                "customWebApiParameters": null
+            }
+        ]
+    }
+}

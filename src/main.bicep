@@ -44,7 +44,13 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
     partitionCount: 1
     semanticSearch: 'standard'
   }
+  identity: {
+    type: 'SystemAssigned'
+  }
 }
+
+
+
 resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   name: openAiName
   location: location

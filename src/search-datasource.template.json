@@ -1,0 +1,11 @@
+{
+    "name": "$AZURE_STORAGEACCOUNT_NAME-datasource",
+    "description": "ADO data from the storage account",
+    "type": "azureblob",
+    "credentials": {
+        "connectionString": "$AZURE_STORAGEACCOUNT_CONNECTIONSTRING"
+    },
+    "container": {
+        "name": "ado"
+    }
+}
