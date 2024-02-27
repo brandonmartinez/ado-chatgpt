@@ -1,3 +1,4 @@
 .env
 .temp
 .DS_Store
+queries/**/*
