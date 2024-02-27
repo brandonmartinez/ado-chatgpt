@@ -57,6 +57,7 @@ set +a
 # Create a variable of the current working directory based on the current file
 WORKING_DIR=$(dirname "$(realpath "$0")")
 SRC_DIR="$WORKING_DIR/src"
+QUERIES_DIR="$WORKING_DIR/queries"
 TEMPLATE_DIR="$WORKING_DIR/templates"
 TEMP_DIR="$WORKING_DIR/.temp"
 TEMP_BICEP_DIR="$TEMP_DIR/bicep"
@@ -133,18 +134,27 @@ else
     logmsg "Setting Azure DevOps az configuration" "INFO"
     IFS=',' read -ra ADO_QUERIES <<< "$ADO_QUERIES"
 
+    if [[ -f "$QUERIES_DIR/ado-record.jq" ]]; then
+        logmsg "Loading ADO record format from $QUERIES_DIR/ado-record.jq" "INFO"
+        ADO_RECORDFORMAT=$(cat "$QUERIES_DIR/ado-record.jq")
+    else
+        logmsg "Loading ADO record format from $TEMPLATE_DIR/ado-record.jq; create $QUERIES_DIR/ado-record.jq if customization is required" "INFO"
+        ADO_RECORDFORMAT=$(cat "$TEMPLATE_DIR/ado-record.jq")
+    fi
+
     az devops configure --defaults organization=https://dev.azure.com/$ADO_ORG/ project=$ADO_PROJECT
-
-    for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
-        logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
-        ADO_WORKITEM_IDS=$(az boards query --id $ADO_QUERYID --query '[].id' -o tsv)
-
+    export_ado_work_items() {
         batch_size=10
         count=0
 
-        for ADO_WORKITEM_ID in $ADO_WORKITEM_IDS; do
+        ADO_WORKITEM_IDS_TO_EXPORT=("$@")
+
+        for ADO_WORKITEM_ID in $ADO_WORKITEM_IDS_TO_EXPORT; do
+            logmsg "Retrieving record for Work Item $ADO_WORKITEM_ID" "INFO"
+
             ADO_WORKITEM_FILENAME="$TEMP_WORKITEM_DIR/$ADO_WORKITEM_ID.json"
             az boards work-item show --id $ADO_WORKITEM_ID -o json --query $ADO_RECORDFORMAT > $ADO_WORKITEM_FILENAME &
+
             count=$((count + 1))
             if [ $((count % batch_size)) -eq 0 ]; then
                 wait
@@ -152,6 +162,31 @@ else
         done
 
         wait
+    }
+
+    if [[ -n "${ADO_QUERIES[@]}" ]]; then
+        for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
+            logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
+            ADO_WORKITEM_IDS=$(az boards query --id $ADO_QUERYID --query '[].id' -o tsv)
+
+            export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
+        done
+    fi
+
+    for WIQL_FILE in $QUERIES_DIR/*.wiql; do
+        WIQL_CONTENT=$(cat "$WIQL_FILE")
+
+        if [[ $WIQL_CONTENT == *"ORDER BY"* ]]; then
+            logmsg "Skipping file $WIQL_FILE; remove the ORDER BY statement." "INFO"
+            continue
+        fi
+
+        WIQL_CONTENT+=" ORDER BY [System.id]"
+
+        logmsg "Exporting ADO work items from WIQL $WIQL_FILE" "INFO"
+        ADO_WORKITEM_IDS=$(az boards query --wiql "$WIQL_CONTENT" --query '[].id' -o tsv)
+
+        export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
     done
 
     logmsg "Finished ADO work item export"
