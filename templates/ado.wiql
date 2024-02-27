@@ -1,0 +1,14 @@
+SELECT
+    [System.Id],
+    [System.WorkItemType],
+    [System.Title],
+    [System.AssignedTo],
+    [System.State],
+    [System.Tags]
+FROM workitems
+WHERE
+    [System.TeamProject] = 'TEAM PROJECT NAME'
+    AND [System.WorkItemType] = 'User STory'
+    AND [System.ChangedDate] >= '2023-07-01T00:00:00.0000000'
+    AND [System.State] IN ('In Progress', 'Closed')
+ORDER BY [System.Id]
