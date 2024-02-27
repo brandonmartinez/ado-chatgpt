@@ -57,6 +57,7 @@ set +a
 # Create a variable of the current working directory based on the current file
 WORKING_DIR=$(dirname "$(realpath "$0")")
 SRC_DIR="$WORKING_DIR/src"
+TEMPLATE_DIR="$WORKING_DIR/templates"
 TEMP_DIR="$WORKING_DIR/.temp"
 TEMP_BICEP_DIR="$TEMP_DIR/bicep"
 TEMP_REST_DIR="$TEMP_DIR/rest"
@@ -93,7 +94,7 @@ else
     logmsg "Starting Azure infrastructure deployment" "HEADER"
 
     logmsg "Token substitution of environment variables to Bicep parameters" "INFO"
-    envsubst < "$SRC_DIR/main.parameters.template.json" > "$TEMP_BICEP_DIR/main.parameters.json"
+    envsubst < "$TEMPLATE_DIR/main.parameters.json" > "$TEMP_BICEP_DIR/main.parameters.json"
 
     logmsg "Creating resource group $AZURE_RESOURCEGROUP if it does not exist" "INFO"
     az group create --name "$AZURE_RESOURCEGROUP" --location "$AZURE_LOCATION"
@@ -176,7 +177,7 @@ else
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_MODELNAME($AZURE_OPENAI_MODELVERSION)" "INFO"
 
-    envsubst < "$SRC_DIR/openai-model.template.json" > "$TEMP_REST_DIR/openai-model.json"
+    envsubst < "$TEMPLATE_DIR/openai-model.json" > "$TEMP_REST_DIR/openai-model.json"
     curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_MODELNAME-$AZURE_OPENAI_MODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
@@ -184,7 +185,7 @@ else
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_EMBEDDINGMODELNAME($AZURE_OPENAI_EMBEDDINGMODELVERSION)" "INFO"
 
-    envsubst < "$SRC_DIR/openai-embeddingmodel.template.json" > "$TEMP_REST_DIR/openai-embeddingmodel.json"
+    envsubst < "$TEMPLATE_DIR/openai-embeddingmodel.json" > "$TEMP_REST_DIR/openai-embeddingmodel.json"
     curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
@@ -200,7 +201,7 @@ else
 
     logmsg "Creating ado-index search index" "INFO"
 
-    envsubst < "$SRC_DIR/search-ado-index.template.json" > "$TEMP_REST_DIR/search-ado-index.json"
+    envsubst < "$TEMPLATE_DIR/search-ado-index.json" > "$TEMP_REST_DIR/search-ado-index.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexes/ado-index?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
@@ -208,7 +209,7 @@ else
 
     logmsg "Creating ado-vector-index search index" "INFO"
 
-    envsubst < "$SRC_DIR/search-ado-vector-index.template.json" > "$TEMP_REST_DIR/search-ado-vector-index.json"
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-index.json" > "$TEMP_REST_DIR/search-ado-vector-index.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexes/ado-vector-index?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
@@ -224,7 +225,7 @@ if [[ "$SKIP_SEARCH_DATASOURCESETUP" == "1" ]]; then
 else
     logmsg "Creating search data source for storage account" "HEADER"
 
-    envsubst < "$SRC_DIR/search-datasource.template.json" > "$TEMP_REST_DIR/search-datasource.json"
+    envsubst < "$TEMPLATE_DIR/search-datasource.json" > "$TEMP_REST_DIR/search-datasource.json"
     curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/datasources?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
@@ -240,7 +241,7 @@ if [[ "$SKIP_SEARCH_SKILLSETSETUP" == "1" ]]; then
 else
     logmsg "Creating search skillset" "HEADER"
 
-    envsubst < "$SRC_DIR/search-ado-vector-skillset.template.json" > "$TEMP_REST_DIR/search-ado-vector-skillset.json"
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-skillset.json" > "$TEMP_REST_DIR/search-ado-vector-skillset.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/skillsets/ado-vector-skillset?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
@@ -258,7 +259,7 @@ else
 
     logmsg "Creating ado-indexer search indexer against storage account" "INFO"
 
-    envsubst < "$SRC_DIR/search-ado-indexer.template.json" > "$TEMP_REST_DIR/search-ado-indexer.json"
+    envsubst < "$TEMPLATE_DIR/search-ado-indexer.json" > "$TEMP_REST_DIR/search-ado-indexer.json"
     curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
@@ -266,7 +267,7 @@ else
 
     logmsg "Creating ado-vector-indexer search indexer against storage account" "INFO"
 
-    envsubst < "$SRC_DIR/search-ado-vector-indexer.template.json" > "$TEMP_REST_DIR/search-ado-vector-indexer.json"
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-indexer.json" > "$TEMP_REST_DIR/search-ado-vector-indexer.json"
     curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
