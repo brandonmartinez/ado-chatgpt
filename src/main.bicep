@@ -28,6 +28,9 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 
 resource storageAccountContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-09-01' = {
   name: '${storageAccountName}/default/ado'
+  dependsOn: [
+    storageAccount
+  ]
   properties: {
     publicAccess: 'None'
   }
