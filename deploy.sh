@@ -210,6 +210,10 @@ else
                 logmsg "No more work items to export" "INFO"
             fi
         done
+
+        # reset
+        ADO_WORKITEM_LASTID=0
+        ADO_WORKITEM_IDS=(0)
     done
 
     logmsg "Finished ADO work item export"
@@ -334,3 +338,5 @@ else
 
     logmsg "Finished creating search indexer"
 fi
+
+logmsg "Completed deployment" "HEADER"
