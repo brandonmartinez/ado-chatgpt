@@ -289,7 +289,7 @@ else
     logmsg "Creating search data source for storage account" "HEADER"
 
     envsubst < "$TEMPLATE_DIR/search-datasource.json" > "$TEMP_REST_DIR/search-datasource.json"
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/datasources?api-version=2023-10-01-Preview" \
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/datasources/$AZURE_STORAGEACCOUNT_NAME-datasource?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
         --data-binary "@$TEMP_REST_DIR/search-datasource.json"
@@ -323,7 +323,7 @@ else
     logmsg "Creating ado-indexer search indexer against storage account" "INFO"
 
     envsubst < "$TEMPLATE_DIR/search-ado-indexer.json" > "$TEMP_REST_DIR/search-ado-indexer.json"
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers/ado-indexer?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
         --data-binary "@$TEMP_REST_DIR/search-ado-indexer.json"
@@ -331,7 +331,7 @@ else
     logmsg "Creating ado-vector-indexer search indexer against storage account" "INFO"
 
     envsubst < "$TEMPLATE_DIR/search-ado-vector-indexer.json" > "$TEMP_REST_DIR/search-ado-vector-indexer.json"
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers/ado-vector-indexer?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
         --data-binary "@$TEMP_REST_DIR/search-ado-vector-indexer.json"
