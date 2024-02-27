@@ -143,13 +143,14 @@ else
     fi
 
     az devops configure --defaults organization=https://dev.azure.com/$ADO_ORG/ project=$ADO_PROJECT
+
     export_ado_work_items() {
-        batch_size=10
+        local ADO_WORKITEM_IDS_TO_EXPORT=("$@")
+
+        batch_size=25
         count=0
 
-        ADO_WORKITEM_IDS_TO_EXPORT=("$@")
-
-        for ADO_WORKITEM_ID in $ADO_WORKITEM_IDS_TO_EXPORT; do
+        for ADO_WORKITEM_ID in "${ADO_WORKITEM_IDS_TO_EXPORT[@]}"; do
             logmsg "Retrieving record for Work Item $ADO_WORKITEM_ID" "INFO"
 
             ADO_WORKITEM_FILENAME="$TEMP_WORKITEM_DIR/$ADO_WORKITEM_ID.json"
@@ -167,7 +168,7 @@ else
     if [[ -n "${ADO_QUERIES[@]}" ]]; then
         for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
             logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
-            ADO_WORKITEM_IDS=$(az boards query --id $ADO_QUERYID --query '[].id' -o tsv)
+            ADO_WORKITEM_IDS=($(az boards query --id $ADO_QUERYID --query '[].id' -o tsv))
 
             export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
         done
@@ -181,12 +182,34 @@ else
             continue
         fi
 
-        WIQL_CONTENT+=" ORDER BY [System.id]"
-
         logmsg "Exporting ADO work items from WIQL $WIQL_FILE" "INFO"
-        ADO_WORKITEM_IDS=$(az boards query --wiql "$WIQL_CONTENT" --query '[].id' -o tsv)
 
-        export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
+        # Work around for the 1000 record limit
+        ADO_WORKITEM_LASTID=0
+        ADO_WORKITEM_IDS=(0)
+        while [[ ${#ADO_WORKITEM_IDS[@]} -gt 0 ]]; do
+            # Create a modified query
+            MODIFIED_WIQL_CONTENT=$WIQL_CONTENT
+            if [[ $ADO_WORKITEM_LASTID -gt 0 ]]; then
+                if [[ $WIQL_CONTENT != *"WHERE"* ]]; then
+                    MODIFIED_WIQL_CONTENT+=" WHERE [System.Id] > $ADO_WORKITEM_LASTID"
+                else
+                    MODIFIED_WIQL_CONTENT+=" AND [System.Id] > $ADO_WORKITEM_LASTID"
+                fi
+            fi
+            MODIFIED_WIQL_CONTENT+=" ORDER BY [System.id]"
+            logmsg "Executing modified WIQL: $MODIFIED_WIQL_CONTENT" "INFO"
+
+            ADO_WORKITEM_IDS=($(az boards query --wiql "$MODIFIED_WIQL_CONTENT" --query '[].id' -o tsv))
+            echo "Retrieved ${#ADO_WORKITEM_IDS[@]} work items"
+
+            if [[ ${#ADO_WORKITEM_IDS[@]} -gt 0 ]]; then
+                export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
+                ADO_WORKITEM_LASTID=${ADO_WORKITEM_IDS[${#ADO_WORKITEM_IDS[@]} - 1]}
+            else
+                logmsg "No more work items to export" "INFO"
+            fi
+        done
     done
 
     logmsg "Finished ADO work item export"
