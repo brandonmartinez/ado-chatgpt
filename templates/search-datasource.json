@@ -3,7 +3,7 @@
     "description": "ADO data from the storage account",
     "type": "azureblob",
     "credentials": {
-        "connectionString": "$AZURE_STORAGEACCOUNT_CONNECTIONSTRING"
+        "connectionString": "ResourceId=/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.Storage/storageAccounts/$AZURE_STORAGEACCOUNT_NAME;"
     },
     "container": {
         "name": "ado"

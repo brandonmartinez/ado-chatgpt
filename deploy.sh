@@ -102,22 +102,23 @@ else
     logmsg "Initiating the Bicep deployment of infrastructure" "INFO"
     AZ_DEPLOYMENT_TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 
-    deployment_name="ADO-AI-Deployment-$AZ_DEPLOYMENT_TIMESTAMP"
+    AZ_DEPLOYMENT_NAME="ADO-AI-$AZ_DEPLOYMENT_TIMESTAMP"
     output=$(az deployment group create \
-        -n "$deployment_name" \
+        -n "$AZ_DEPLOYMENT_NAME" \
         --template-file "$SRC_DIR/main.bicep" \
         --parameters "$TEMP_BICEP_DIR/main.parameters.json" \
         -g "$AZURE_RESOURCEGROUP" \
         --query 'properties.outputs')
 
     export AZURE_STORAGEACCOUNT_NAME=$(echo "$output" | jq -r '.storageAccountName.value')
-    export AZURE_STORAGEACCOUNT_CONNECTIONSTRING=$(echo "$output" | jq -r '.storageAccountConnectionString.value')
     export AZURE_SEARCHSERVICE_NAME=$(echo "$output" | jq -r '.searchServiceName.value')
     export AZURE_SEARCHSERVICE_URL=$(echo "$output" | jq -r '.searchServiceUrl.value')
-    export AZURE_SEARCHSERVICE_ADMINKEY=$(echo "$output" | jq -r '.searchServiceAdminKey.value')
     export AZURE_OPENAI_NAME=$(echo "$output" | jq -r '.openAiName.value')
     export AZURE_OPENAI_URL=$(echo "$output" | jq -r '.openAiUrl.value')
-    export AZURE_OPENAI_KEY=$(echo "$output" | jq -r '.openAiKey.value')
+
+    logmsg "Getting Admin keys for Azure Search and OpenAI" "INFO"
+    export AZURE_SEARCHSERVICE_ADMINKEY=$(az search admin-key show --service-name "$AZURE_SEARCHSERVICE_NAME" --query "primaryKey" --output tsv)
+    export AZURE_OPENAI_KEY=$(az cognitiveservices account keys list --name "$AZURE_OPENAI_NAME" --query "key1" --output tsv)
 
     logmsg "Azure infrastructure deployment completed"
 fi
