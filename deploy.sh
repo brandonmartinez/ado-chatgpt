@@ -56,10 +56,15 @@ set +a
 # setting up temporary directories
 # Create a variable of the current working directory based on the current file
 WORKING_DIR=$(dirname "$(realpath "$0")")
+SRC_DIR="$WORKING_DIR/src"
+QUERIES_DIR="$WORKING_DIR/queries"
+TEMPLATE_DIR="$WORKING_DIR/templates"
 TEMP_DIR="$WORKING_DIR/.temp"
+TEMP_BICEP_DIR="$TEMP_DIR/bicep"
+TEMP_REST_DIR="$TEMP_DIR/rest"
 TEMP_WORKITEM_DIR="$TEMP_DIR/workitems"
 
-mkdir -p "$TEMP_WORKITEM_DIR"
+mkdir -p "$TEMP_BICEP_DIR" "$TEMP_REST_DIR" "$TEMP_WORKITEM_DIR"
 
 logmsg "Environment configuration completed"
 
@@ -90,7 +95,7 @@ else
     logmsg "Starting Azure infrastructure deployment" "HEADER"
 
     logmsg "Token substitution of environment variables to Bicep parameters" "INFO"
-    envsubst < src/main.parameters.template.json > src/main.parameters.json
+    envsubst < "$TEMPLATE_DIR/main.parameters.json" > "$TEMP_BICEP_DIR/main.parameters.json"
 
     logmsg "Creating resource group $AZURE_RESOURCEGROUP if it does not exist" "INFO"
     az group create --name "$AZURE_RESOURCEGROUP" --location "$AZURE_LOCATION"
@@ -98,22 +103,23 @@ else
     logmsg "Initiating the Bicep deployment of infrastructure" "INFO"
     AZ_DEPLOYMENT_TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 
-    deployment_name="ADO-AI-Deployment-$AZ_DEPLOYMENT_TIMESTAMP"
+    AZ_DEPLOYMENT_NAME="ADO-AI-$AZ_DEPLOYMENT_TIMESTAMP"
     output=$(az deployment group create \
-        -n "$deployment_name" \
-        --template-file src/main.bicep \
-        --parameters src/main.parameters.json \
+        -n "$AZ_DEPLOYMENT_NAME" \
+        --template-file "$SRC_DIR/main.bicep" \
+        --parameters "$TEMP_BICEP_DIR/main.parameters.json" \
         -g "$AZURE_RESOURCEGROUP" \
         --query 'properties.outputs')
 
-    AZURE_STORAGEACCOUNT_NAME=$(echo "$output" | jq -r '.storageAccountName.value')
-    AZURE_STORAGEACCOUNT_CONNECTIONSTRING=$(echo "$output" | jq -r '.storageAccountConnectionString.value')
-    AZURE_SEARCHSERVICE_NAME=$(echo "$output" | jq -r '.searchServiceName.value')
-    AZURE_SEARCHSERVICE_URL=$(echo "$output" | jq -r '.searchServiceUrl.value')
-    AZURE_SEARCHSERVICE_ADMINKEY=$(echo "$output" | jq -r '.searchServiceAdminKey.value')
-    AZURE_OPENAI_NAME=$(echo "$output" | jq -r '.openAiName.value')
-    AZURE_OPENAI_URL=$(echo "$output" | jq -r '.openAiUrl.value')
-    AZURE_OPENAI_KEY=$(echo "$output" | jq -r '.openAiKey.value')
+    export AZURE_STORAGEACCOUNT_NAME=$(echo "$output" | jq -r '.storageAccountName.value')
+    export AZURE_SEARCHSERVICE_NAME=$(echo "$output" | jq -r '.searchServiceName.value')
+    export AZURE_SEARCHSERVICE_URL=$(echo "$output" | jq -r '.searchServiceUrl.value')
+    export AZURE_OPENAI_NAME=$(echo "$output" | jq -r '.openAiName.value')
+    export AZURE_OPENAI_URL=$(echo "$output" | jq -r '.openAiUrl.value')
+
+    logmsg "Getting Admin keys for Azure Search and OpenAI" "INFO"
+    export AZURE_SEARCHSERVICE_ADMINKEY=$(az search admin-key show --service-name "$AZURE_SEARCHSERVICE_NAME" --query "primaryKey" --output tsv)
+    export AZURE_OPENAI_KEY=$(az cognitiveservices account keys list --name "$AZURE_OPENAI_NAME" --query "key1" --output tsv)
 
     logmsg "Azure infrastructure deployment completed"
 fi
@@ -128,18 +134,28 @@ else
     logmsg "Setting Azure DevOps az configuration" "INFO"
     IFS=',' read -ra ADO_QUERIES <<< "$ADO_QUERIES"
 
+    if [[ -f "$QUERIES_DIR/ado-record.jq" ]]; then
+        logmsg "Loading ADO record format from $QUERIES_DIR/ado-record.jq" "INFO"
+        ADO_RECORDFORMAT=$(cat "$QUERIES_DIR/ado-record.jq")
+    else
+        logmsg "Loading ADO record format from $TEMPLATE_DIR/ado-record.jq; create $QUERIES_DIR/ado-record.jq if customization is required" "INFO"
+        ADO_RECORDFORMAT=$(cat "$TEMPLATE_DIR/ado-record.jq")
+    fi
+
     az devops configure --defaults organization=https://dev.azure.com/$ADO_ORG/ project=$ADO_PROJECT
 
-    for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
-        logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
-        ADO_WORKITEM_IDS=$(az boards query --id $ADO_QUERYID --query '[].id' -o tsv)
+    export_ado_work_items() {
+        local ADO_WORKITEM_IDS_TO_EXPORT=("$@")
 
-        batch_size=10
+        batch_size=25
         count=0
 
-        for ADO_WORKITEM_ID in $ADO_WORKITEM_IDS; do
+        for ADO_WORKITEM_ID in "${ADO_WORKITEM_IDS_TO_EXPORT[@]}"; do
+            logmsg "Retrieving record for Work Item $ADO_WORKITEM_ID" "INFO"
+
             ADO_WORKITEM_FILENAME="$TEMP_WORKITEM_DIR/$ADO_WORKITEM_ID.json"
             az boards work-item show --id $ADO_WORKITEM_ID -o json --query $ADO_RECORDFORMAT > $ADO_WORKITEM_FILENAME &
+
             count=$((count + 1))
             if [ $((count % batch_size)) -eq 0 ]; then
                 wait
@@ -147,6 +163,57 @@ else
         done
 
         wait
+    }
+
+    if [[ -n "${ADO_QUERIES[@]}" ]]; then
+        for ADO_QUERYID in "${ADO_QUERIES[@]}"; do
+            logmsg "Exporting ADO work items from query $ADO_QUERYID" "INFO"
+            ADO_WORKITEM_IDS=($(az boards query --id $ADO_QUERYID --query '[].id' -o tsv))
+
+            export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
+        done
+    fi
+
+    for WIQL_FILE in $QUERIES_DIR/*.wiql; do
+        WIQL_CONTENT=$(cat "$WIQL_FILE")
+
+        if [[ $WIQL_CONTENT == *"ORDER BY"* ]]; then
+            logmsg "Skipping file $WIQL_FILE; remove the ORDER BY statement." "INFO"
+            continue
+        fi
+
+        logmsg "Exporting ADO work items from WIQL $WIQL_FILE" "INFO"
+
+        # Work around for the 1000 record limit
+        ADO_WORKITEM_LASTID=0
+        ADO_WORKITEM_IDS=(0)
+        while [[ ${#ADO_WORKITEM_IDS[@]} -gt 0 ]]; do
+            # Create a modified query
+            MODIFIED_WIQL_CONTENT=$WIQL_CONTENT
+            if [[ $ADO_WORKITEM_LASTID -gt 0 ]]; then
+                if [[ $WIQL_CONTENT != *"WHERE"* ]]; then
+                    MODIFIED_WIQL_CONTENT+=" WHERE [System.Id] > $ADO_WORKITEM_LASTID"
+                else
+                    MODIFIED_WIQL_CONTENT+=" AND [System.Id] > $ADO_WORKITEM_LASTID"
+                fi
+            fi
+            MODIFIED_WIQL_CONTENT+=" ORDER BY [System.id]"
+            logmsg "Executing modified WIQL: $MODIFIED_WIQL_CONTENT" "INFO"
+
+            ADO_WORKITEM_IDS=($(az boards query --wiql "$MODIFIED_WIQL_CONTENT" --query '[].id' -o tsv))
+            echo "Retrieved ${#ADO_WORKITEM_IDS[@]} work items"
+
+            if [[ ${#ADO_WORKITEM_IDS[@]} -gt 0 ]]; then
+                export_ado_work_items "${ADO_WORKITEM_IDS[@]}"
+                ADO_WORKITEM_LASTID=${ADO_WORKITEM_IDS[${#ADO_WORKITEM_IDS[@]} - 1]}
+            else
+                logmsg "No more work items to export" "INFO"
+            fi
+        done
+
+        # reset
+        ADO_WORKITEM_LASTID=0
+        ADO_WORKITEM_IDS=(0)
     done
 
     logmsg "Finished ADO work item export"
@@ -173,47 +240,19 @@ else
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_MODELNAME($AZURE_OPENAI_MODELVERSION)" "INFO"
 
+    envsubst < "$TEMPLATE_DIR/openai-model.json" > "$TEMP_REST_DIR/openai-model.json"
     curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_MODELNAME-$AZURE_OPENAI_MODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
-        --data-binary @- << EOF
-{
-    "sku": {
-        "name": "Standard",
-        "capacity": 120
-    },
-    "properties": {
-        "model": {
-            "format": "OpenAI",
-            "name": "$AZURE_OPENAI_MODELNAME",
-            "version": "$AZURE_OPENAI_MODELVERSION"
-        },
-        "versionUpgradeOption": "OnceCurrentVersionExpired"
-    }
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/openai-model.json"
 
     logmsg "Deploying Open AI model $AZURE_OPENAI_EMBEDDINGMODELNAME($AZURE_OPENAI_EMBEDDINGMODELVERSION)" "INFO"
 
+    envsubst < "$TEMPLATE_DIR/openai-embeddingmodel.json" > "$TEMP_REST_DIR/openai-embeddingmodel.json"
     curl -X PUT https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTIONID/resourceGroups/$AZURE_RESOURCEGROUP/providers/Microsoft.CognitiveServices/accounts/$AZURE_OPENAI_NAME/deployments/$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION?api-version=2023-05-01 \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AZURE_AUTHTOKEN" \
-        --data-binary @- << EOF
-{
-    "sku": {
-        "name": "Standard",
-        "capacity": 120
-    },
-    "properties": {
-        "model": {
-            "format": "OpenAI",
-            "name": "$AZURE_OPENAI_EMBEDDINGMODELNAME",
-            "version": "$AZURE_OPENAI_EMBEDDINGMODELVERSION"
-        },
-        "versionUpgradeOption": "OnceCurrentVersionExpired"
-    }
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/openai-embeddingmodel.json"
 fi
 
 # Setting up Azure Search Index
@@ -224,244 +263,20 @@ else
     logmsg "Creating search indexes" "HEADER"
 
     logmsg "Creating ado-index search index" "INFO"
+
+    envsubst < "$TEMPLATE_DIR/search-ado-index.json" > "$TEMP_REST_DIR/search-ado-index.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexes/ado-index?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-    "name": "ado-index",
-    "fields": [
-        {
-            "name": "Id",
-            "type": "Edm.String",
-            "key": true,
-            "filterable": true
-        },
-        {
-            "name": "AreaPath",
-            "type": "Edm.String",
-            "filterable": true
-        },
-        {
-            "name": "AssignedTo",
-            "type": "Edm.String",
-            "filterable": true
-        },
-        {
-            "name": "Categories",
-            "type": "Edm.String"
-        },
-        {
-            "name": "ChangedDate",
-            "type": "Edm.DateTimeOffset"
-        },
-        {
-            "name": "ClosedDate",
-            "type": "Edm.DateTimeOffset"
-        },
-        {
-            "name": "CreatedDate",
-            "type": "Edm.DateTimeOffset"
-        },
-        {
-            "name": "StateChangeDate",
-            "type": "Edm.DateTimeOffset"
-        },
-        {
-            "name": "Description",
-            "type": "Edm.String",
-            "analyzer": "en.lucene"
-        },
-        {
-            "name": "State",
-            "type": "Edm.String",
-            "filterable": true
-        },
-        {
-            "name": "Tags",
-            "type": "Edm.String",
-            "filterable": true
-        },
-        {
-            "name": "Title",
-            "type": "Edm.String",
-            "filterable": true
-        }
-    ],
-    "corsOptions": {
-        "allowedOrigins": [
-            "*"
-        ],
-        "maxAgeInSeconds": 300
-    }
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-ado-index.json"
 
     logmsg "Creating ado-vector-index search index" "INFO"
+
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-index.json" > "$TEMP_REST_DIR/search-ado-vector-index.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexes/ado-vector-index?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-  "name": "ado-vector-index",
-  "defaultScoringProfile": null,
-  "fields": [
-    {
-      "name": "chunk_id",
-      "type": "Edm.String",
-      "searchable": true,
-      "filterable": true,
-      "retrievable": true,
-      "sortable": true,
-      "facetable": true,
-      "key": true,
-      "indexAnalyzer": null,
-      "searchAnalyzer": null,
-      "analyzer": "keyword",
-      "normalizer": null,
-      "dimensions": null,
-      "vectorSearchProfile": null,
-      "synonymMaps": []
-    },
-    {
-      "name": "parent_id",
-      "type": "Edm.String",
-      "searchable": true,
-      "filterable": true,
-      "retrievable": true,
-      "sortable": true,
-      "facetable": true,
-      "key": false,
-      "indexAnalyzer": null,
-      "searchAnalyzer": null,
-      "analyzer": null,
-      "normalizer": null,
-      "dimensions": null,
-      "vectorSearchProfile": null,
-      "synonymMaps": []
-    },
-    {
-      "name": "chunk",
-      "type": "Edm.String",
-      "searchable": true,
-      "filterable": false,
-      "retrievable": true,
-      "sortable": false,
-      "facetable": false,
-      "key": false,
-      "indexAnalyzer": null,
-      "searchAnalyzer": null,
-      "analyzer": null,
-      "normalizer": null,
-      "dimensions": null,
-      "vectorSearchProfile": null,
-      "synonymMaps": []
-    },
-    {
-      "name": "title",
-      "type": "Edm.String",
-      "searchable": true,
-      "filterable": true,
-      "retrievable": true,
-      "sortable": false,
-      "facetable": false,
-      "key": false,
-      "indexAnalyzer": null,
-      "searchAnalyzer": null,
-      "analyzer": null,
-      "normalizer": null,
-      "dimensions": null,
-      "vectorSearchProfile": null,
-      "synonymMaps": []
-    },
-    {
-      "name": "vector",
-      "type": "Collection(Edm.Single)",
-      "searchable": true,
-      "filterable": false,
-      "retrievable": true,
-      "sortable": false,
-      "facetable": false,
-      "key": false,
-      "indexAnalyzer": null,
-      "searchAnalyzer": null,
-      "analyzer": null,
-      "normalizer": null,
-      "dimensions": 1536,
-      "vectorSearchProfile": "ado-vector-profile",
-      "synonymMaps": []
-    }
-  ],
-  "scoringProfiles": [],
-  "corsOptions": null,
-  "suggesters": [],
-  "analyzers": [],
-  "normalizers": [],
-  "tokenizers": [],
-  "tokenFilters": [],
-  "charFilters": [],
-  "encryptionKey": null,
-  "similarity": {
-    "@odata.type": "#Microsoft.Azure.Search.BM25Similarity",
-    "k1": null,
-    "b": null
-  },
-  "semantic": {
-    "defaultConfiguration": "ado-vector-semantic-configuration",
-    "configurations": [
-      {
-        "name": "ado-vector-semantic-configuration",
-        "prioritizedFields": {
-          "titleField": {
-            "fieldName": "title"
-          },
-          "prioritizedContentFields": [
-            {
-              "fieldName": "chunk"
-            }
-          ],
-          "prioritizedKeywordsFields": []
-        }
-      }
-    ]
-  },
-  "vectorSearch": {
-    "algorithms": [
-      {
-        "name": "ado-vector-algorithm",
-        "kind": "hnsw",
-        "hnswParameters": {
-          "metric": "cosine",
-          "m": 4,
-          "efConstruction": 400,
-          "efSearch": 500
-        },
-        "exhaustiveKnnParameters": null
-      }
-    ],
-    "profiles": [
-      {
-        "name": "ado-vector-profile",
-        "algorithm": "ado-vector-algorithm",
-        "vectorizer": "ado-vector-vectorizer"
-      }
-    ],
-    "vectorizers": [
-      {
-        "name": "ado-vector-vectorizer",
-        "kind": "azureOpenAI",
-        "azureOpenAIParameters": {
-          "resourceUri": "$AZURE_OPENAI_URL",
-          "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION",
-          "apiKey": "$AZURE_OPENAI_KEY",
-          "authIdentity": null
-        },
-        "customWebApiParameters": null
-      }
-    ]
-  }
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-ado-vector-index.json"
 
     logmsg "Finished creating search index"
 fi
@@ -473,20 +288,11 @@ if [[ "$SKIP_SEARCH_DATASOURCESETUP" == "1" ]]; then
 else
     logmsg "Creating search data source for storage account" "HEADER"
 
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/datasources?api-version=2023-10-01-Preview" \
+    envsubst < "$TEMPLATE_DIR/search-datasource.json" > "$TEMP_REST_DIR/search-datasource.json"
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/datasources/$AZURE_STORAGEACCOUNT_NAME-datasource?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-    "name" : "$AZURE_STORAGEACCOUNT_NAME-datasource",
-    "description" : "ADO data from the storage account",
-    "type" : "azureblob",
-    "credentials" : { "connectionString" : "$AZURE_STORAGEACCOUNT_CONNECTIONSTRING" },
-    "container": {
-        "name": "ado"
-    }
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-datasource.json"
 
     logmsg "Finished creating search data source"
 fi
@@ -498,97 +304,11 @@ if [[ "$SKIP_SEARCH_SKILLSETSETUP" == "1" ]]; then
 else
     logmsg "Creating search skillset" "HEADER"
 
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-skillset.json" > "$TEMP_REST_DIR/search-ado-vector-skillset.json"
     curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/skillsets/ado-vector-skillset?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-  "name": "ado-vector-skillset",
-  "description": "Skillset to chunk documents and generate embeddings",
-  "skills": [
-    {
-      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
-      "name": "#1",
-      "description": null,
-      "context": "/document/pages/*",
-      "resourceUri": "$AZURE_OPENAI_URL",
-      "apiKey": "$AZURE_OPENAI_KEY",
-      "deploymentId": "$AZURE_OPENAI_EMBEDDINGMODELNAME-$AZURE_OPENAI_EMBEDDINGMODELVERSION",
-      "inputs": [
-        {
-          "name": "text",
-          "source": "/document/pages/*"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "embedding",
-          "targetName": "vector"
-        }
-      ],
-      "authIdentity": null
-    },
-    {
-      "@odata.type": "#Microsoft.Skills.Text.SplitSkill",
-      "name": "#2",
-      "description": "Split skill to chunk documents",
-      "context": "/document",
-      "defaultLanguageCode": "en",
-      "textSplitMode": "pages",
-      "maximumPageLength": 2000,
-      "pageOverlapLength": 500,
-      "maximumPagesToTake": 0,
-      "inputs": [
-        {
-          "name": "text",
-          "source": "/document/content"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "textItems",
-          "targetName": "pages"
-        }
-      ]
-    }
-  ],
-  "cognitiveServices": null,
-  "knowledgeStore": null,
-  "indexProjections": {
-    "selectors": [
-      {
-        "targetIndexName": "ado-vector-index",
-        "parentKeyFieldName": "parent_id",
-        "sourceContext": "/document/pages/*",
-        "mappings": [
-          {
-            "name": "chunk",
-            "source": "/document/pages/*",
-            "sourceContext": null,
-            "inputs": []
-          },
-          {
-            "name": "vector",
-            "source": "/document/pages/*/vector",
-            "sourceContext": null,
-            "inputs": []
-          },
-          {
-            "name": "title",
-            "source": "/document/metadata_storage_name",
-            "sourceContext": null,
-            "inputs": []
-          }
-        ]
-      }
-    ],
-    "parameters": {
-      "projectionMode": "skipIndexingParentDocuments"
-    }
-  },
-  "encryptionKey": null
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-ado-vector-skillset.json"
 
     logmsg "Finished creating search data source"
 fi
@@ -601,67 +321,22 @@ else
     logmsg "Creating search indexers against storage account" "HEADER"
 
     logmsg "Creating ado-indexer search indexer against storage account" "INFO"
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
+
+    envsubst < "$TEMPLATE_DIR/search-ado-indexer.json" > "$TEMP_REST_DIR/search-ado-indexer.json"
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers/ado-indexer?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-  "name" : "ado-indexer",
-  "dataSourceName" : "$AZURE_STORAGEACCOUNT_NAME-datasource",
-  "targetIndexName" : "ado-index",
-  "parameters": {
-      "batchSize": null,
-      "maxFailedItems": null,
-      "maxFailedItemsPerBatch": null,
-      "base64EncodeKeys": null,
-      "configuration": {
-          "indexedFileNameExtensions" : ".json",
-          "dataToExtract": "contentAndMetadata",
-          "parsingMode": "default"
-      }
-  },
-  "schedule" : { },
-  "fieldMappings" : [ ]
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-ado-indexer.json"
 
     logmsg "Creating ado-vector-indexer search indexer against storage account" "INFO"
-    curl -X POST "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers?api-version=2023-10-01-Preview" \
+
+    envsubst < "$TEMPLATE_DIR/search-ado-vector-indexer.json" > "$TEMP_REST_DIR/search-ado-vector-indexer.json"
+    curl -X PUT "https://$AZURE_SEARCHSERVICE_NAME.search.windows.net/indexers/ado-vector-indexer?api-version=2023-10-01-Preview" \
         -H "api-key: $AZURE_SEARCHSERVICE_ADMINKEY" \
         -H "Content-Type: application/json" \
-        --data-binary @- << EOF
-{
-  "name": "ado-vector-indexer",
-  "description": null,
-  "dataSourceName" : "$AZURE_STORAGEACCOUNT_NAME-datasource",
-  "skillsetName": "ado-vector-skillset",
-  "targetIndexName": "ado-vector-index",
-  "disabled": null,
-  "schedule": {
-    "interval": "P1D",
-    "startTime": "2024-02-21T03:48:13Z"
-  },
-  "parameters": {
-    "batchSize": null,
-    "maxFailedItems": null,
-    "maxFailedItemsPerBatch": null,
-    "base64EncodeKeys": null,
-    "configuration": {
-      "dataToExtract": "contentAndMetadata",
-      "parsingMode": "default"
-    }
-  },
-  "fieldMappings": [
-    {
-      "sourceFieldName": "metadata_storage_name",
-      "targetFieldName": "title",
-      "mappingFunction": null
-    }
-  ],
-  "outputFieldMappings": [],
-  "encryptionKey": null
-}
-EOF
+        --data-binary "@$TEMP_REST_DIR/search-ado-vector-indexer.json"
 
     logmsg "Finished creating search indexer"
 fi
+
+logmsg "Completed deployment" "HEADER"

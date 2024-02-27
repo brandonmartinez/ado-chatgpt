@@ -7,7 +7,6 @@ AZURE_SUBSCRIPTIONID=''
 ADO_ORG=''
 ADO_PROJECT=''
 ADO_QUERIES=''
-ADO_RECORDFORMAT='{Id:id,AreaPath:fields."System.AreaPath",AssignedTo:fields."System.AssignedTo".displayName,State:fields."System.State",CreatedDate:fields."System.CreatedDate",ChangedDate:fields."System.ChangedDate",Title:fields."System.Title",StateChangeDate:fields."Microsoft.VSTS.Common.StateChangeDate",ClosedDate:fields."Microsoft.VSTS.Common.ClosedDate",Description:fields."System.Description",Tags:fields."System.Tags"}'
 
 # Azure Open AI Model Configurations
 # More info: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/use-your-data?tabs=ai-search#supported-models

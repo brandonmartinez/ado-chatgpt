@@ -1,0 +1,31 @@
+{
+    "name": "ado-vector-indexer",
+    "description": null,
+    "dataSourceName": "$AZURE_STORAGEACCOUNT_NAME-datasource",
+    "skillsetName": "ado-vector-skillset",
+    "targetIndexName": "ado-vector-index",
+    "disabled": null,
+    "schedule": {
+        "interval": "P1D",
+        "startTime": "2024-02-21T03:48:13Z"
+    },
+    "parameters": {
+        "batchSize": null,
+        "maxFailedItems": null,
+        "maxFailedItemsPerBatch": null,
+        "base64EncodeKeys": null,
+        "configuration": {
+            "dataToExtract": "contentAndMetadata",
+            "parsingMode": "default"
+        }
+    },
+    "fieldMappings": [
+        {
+            "sourceFieldName": "metadata_storage_name",
+            "targetFieldName": "title",
+            "mappingFunction": null
+        }
+    ],
+    "outputFieldMappings": [],
+    "encryptionKey": null
+}

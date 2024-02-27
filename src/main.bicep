@@ -28,6 +28,9 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 
 resource storageAccountContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-09-01' = {
   name: '${storageAccountName}/default/ado'
+  dependsOn: [
+    storageAccount
+  ]
   properties: {
     publicAccess: 'None'
   }
@@ -44,7 +47,19 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
     partitionCount: 1
     semanticSearch: 'standard'
   }
+  identity: {
+    type: 'SystemAssigned'
+  }
 }
+
+module searchServiceRoleAssignment 'searchServiceRoleAssignment.bicep' = {
+  name: '${deployment().name}-roles'
+  params: {
+    searchServiceName: searchServiceName
+    principalId: searchService.identity.principalId
+  }
+}
+
 resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   name: openAiName
   location: location
@@ -58,10 +73,7 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
 }
 
 output storageAccountName string = storageAccount.name
-output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value}'
 output searchServiceName string = searchService.name
 output searchServiceUrl string = 'https://${searchService.name}.search.windows.net'
-output searchServiceAdminKey string = listAdminKeys(searchService.id, '2023-11-01').PrimaryKey
 output openAiName string = openAi.name
 output openAiUrl string = openAi.properties.endpoint
-output openAiKey string = listKeys(openAi.id, '2023-05-01').key1
